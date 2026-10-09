@@ -5,6 +5,8 @@ import { sendDigest } from './notify'
 import { rankHistory, recentErrors, topSignals, type Period } from './queries'
 import { Page } from './ui'
 
+const FETCH_CRON = '0 3,9,15,21 * * *'
+
 const nowSec = () => Math.floor(Date.now() / 1000)
 
 const app = new Hono<{ Bindings: Env }>()
@@ -42,10 +44,10 @@ export default {
   async scheduled(controller, env, ctx) {
     // 同じ回の全チャートで時刻を揃えるため、cronの予定時刻(分単位)を観測時刻にする
     const now = Math.floor(controller.scheduledTime / 60000) * 60
-    if (controller.cron === '30 22 * * *') {
-      await sendDigest(env, now, env.APP_URL || null)
-    } else {
+    if (controller.cron === FETCH_CRON) {
       await collectAll(env.DB, now)
+    } else {
+      await sendDigest(env, now, env.APP_URL || null)
     }
   },
 } satisfies ExportedHandler<Env>
