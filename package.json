@@ -1,0 +1,20 @@
+{
+  "name": "find-buzz",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy --minify",
+    "db:migrate:local": "wrangler d1 migrations apply find-buzz --local",
+    "db:migrate:remote": "wrangler d1 migrations apply find-buzz --remote",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "wrangler": "^4.149.0"
+  }
+}
