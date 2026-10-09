@@ -7,7 +7,7 @@
     {
       "binding": "DB",
       "database_name": "find-buzz",
-      "database_id": "local-placeholder",
+      "database_id": "1f225b1a-d9c4-45fa-aa17-d3801d4ef008",
       "migrations_dir": "./migrations"
     }
   ],
@@ -18,7 +18,7 @@
   "vars": {
     "DIGEST_SIZE": "10",
     // デプロイ後のURL。Slack通知の「一覧を開く」リンクに使う
-    "APP_URL": ""
+    "APP_URL": "https://find-buzz.youth1975.workers.dev"
   },
   "observability": { "enabled": true }
 }
