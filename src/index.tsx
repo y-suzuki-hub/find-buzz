@@ -1,11 +1,9 @@
 import { Hono } from 'hono'
 import { chartLabel, charts } from './charts'
-import { collectAll } from './collect'
+import { ingestAll, type ChartResult } from './collect'
 import { sendDigest } from './notify'
 import { rankHistory, recentErrors, topSignals, type Period } from './queries'
 import { Page } from './ui'
-
-const FETCH_CRON = '0 3,9,15,21 * * *'
 
 const nowSec = () => Math.floor(Date.now() / 1000)
 
@@ -39,15 +37,40 @@ app.get('/', async (c) => {
   )
 })
 
+// Apple RSSはCloudflareからのアクセスを403で拒否するため、取得はGitHub Actionsで行いここへ送る
+app.post('/ingest', async (c) => {
+  if (!(await tokenMatches(c.req.header('authorization') ?? '', `Bearer ${c.env.INGEST_TOKEN ?? ''}`)) || !c.env.INGEST_TOKEN)
+    return c.text('forbidden', 403)
+
+  const body = await c.req.json<{ observedAt?: unknown; results?: unknown }>().catch(() => null)
+  const observedAt = Number(body?.observedAt)
+  if (!Number.isInteger(observedAt) || !Array.isArray(body?.results)) return c.text('bad request', 400)
+
+  const known = new Map(charts.map((x) => [x.id, x.source]))
+  const results: ChartResult[] = []
+  for (const r of body.results as ChartResult[]) {
+    const source = known.get(r?.chart)
+    if (!source) return c.text(`unknown chart: ${String(r?.chart).slice(0, 80)}`, 400)
+    const items = Array.isArray(r.items)
+      ? r.items
+          .slice(0, 200)
+          .filter((i) => typeof i?.externalId === 'string' && typeof i?.name === 'string' && typeof i?.url === 'string')
+      : undefined
+    results.push({ chart: r.chart, source, items, error: typeof r.error === 'string' ? r.error.slice(0, 500) : undefined })
+  }
+
+  return c.json(await ingestAll(c.env.DB, observedAt, results))
+})
+
+async function tokenMatches(a: string, b: string) {
+  const enc = new TextEncoder()
+  const [ha, hb] = await Promise.all([a, b].map((s) => crypto.subtle.digest('SHA-256', enc.encode(s))))
+  return crypto.subtle.timingSafeEqual(ha, hb)
+}
+
 export default {
   fetch: app.fetch,
-  async scheduled(controller, env, ctx) {
-    // 同じ回の全チャートで時刻を揃えるため、cronの予定時刻(分単位)を観測時刻にする
-    const now = Math.floor(controller.scheduledTime / 60000) * 60
-    if (controller.cron === FETCH_CRON) {
-      await collectAll(env.DB, now)
-    } else {
-      await sendDigest(env, now, env.APP_URL || null)
-    }
+  async scheduled(controller, env) {
+    await sendDigest(env, Math.floor(controller.scheduledTime / 1000), env.APP_URL || null)
   },
 } satisfies ExportedHandler<Env>

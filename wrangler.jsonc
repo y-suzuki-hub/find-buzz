@@ -12,8 +12,8 @@
     }
   ],
   "triggers": {
-    // UTC。取得=JST 0/6/12/18時、ダイジェスト=JST 7:30
-    "crons": ["0 3,9,15,21 * * *", "30 22 * * *"]
+    // UTC。ダイジェスト=JST 7:30(取得は .github/workflows/fetch.yml)
+    "crons": ["30 22 * * *"]
   },
   "vars": {
     "DIGEST_SIZE": "10",

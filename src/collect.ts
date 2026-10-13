@@ -1,18 +1,21 @@
-import { charts } from './charts'
 import { computeSignals } from './score'
-import type { Chart } from './sources/types'
+import type { FetchedItem } from './sources/types'
 
-export async function collectAll(db: D1Database, now: number) {
+export type ChartResult = { chart: string; source: string; items?: FetchedItem[]; error?: string }
+
+export async function ingestAll(db: D1Database, now: number, results: ChartResult[]) {
   // 1つの取得元が落ちても他のチャートは保存する
-  const results = await Promise.allSettled(charts.map((c) => collectChart(db, c, now)))
-  const failed = results.flatMap((r, i) => (r.status === 'rejected' ? [`${charts[i].id}: ${r.reason}`] : []))
-  if (failed.length) console.error('collect failed', failed)
-  return { ok: charts.length - failed.length, failed }
+  const settled = await Promise.allSettled(results.map((r) => ingestChart(db, r, now)))
+  const failed = settled.flatMap((r, i) => (r.status === 'rejected' ? [`${results[i].chart}: ${r.reason}`] : []))
+  if (failed.length) console.error('ingest failed', failed)
+  return { ok: results.length - failed.length, failed }
 }
 
-async function collectChart(db: D1Database, chart: Chart, now: number) {
+async function ingestChart(db: D1Database, result: ChartResult, now: number) {
+  const chart = { id: result.chart, source: result.source }
   try {
-    const fetched = await chart.fetch()
+    if (result.error || !result.items?.length) throw new Error(result.error ?? 'no items')
+    const fetched = result.items
 
     // D1は1クエリのバインド数に上限があるため、配列はJSONで渡してjson_eachで展開する
     await db
