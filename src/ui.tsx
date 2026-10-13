@@ -18,8 +18,8 @@ select,input,button{font:inherit;padding:6px 10px;border:1px solid var(--line);b
 input[type=number]{width:90px}
 button{background:var(--accent);border-color:var(--accent);color:#fff;cursor:pointer}
 ol{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
-li{display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-li img{width:48px;height:48px;border-radius:11px;display:block}
+ol>li{display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+ol>li img{width:48px;height:48px;border-radius:11px;display:block}
 .name{font-weight:600;color:inherit;text-decoration:none}
 .name:hover{text-decoration:underline}
 .meta{font-size:12px;color:var(--muted)}
@@ -28,10 +28,15 @@ li img{width:48px;height:48px;border-radius:11px;display:block}
 .badge{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--new);color:#fff;margin-right:4px}
 .right{text-align:right}
 .score{font-size:18px;font-weight:700;color:var(--accent)}
+.score-label{font-size:11px;color:var(--muted)}
+.help{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 16px}
+.help strong{color:var(--accent)}
+.help ul{margin:6px 0 0;padding-left:18px;color:var(--muted)}
+.hint{font-size:11px;color:var(--muted)}
 svg{display:block;margin-top:4px}
 .empty{padding:32px;text-align:center;color:var(--muted);background:var(--card);border-radius:12px;border:1px solid var(--line)}
 .err{font-size:13px;color:var(--accent);margin-bottom:12px}
-@media (max-width:560px){li{grid-template-columns:40px 1fr}li img{width:40px;height:40px}.right{grid-column:2;text-align:left;display:flex;gap:12px;align-items:center}}
+@media (max-width:560px){ol>li{grid-template-columns:40px 1fr}ol>li img{width:40px;height:40px}.right{grid-column:2;text-align:left;display:flex;gap:12px;align-items:center}}
 `
 
 const rankText = (r: number | null) => (r === null ? '–' : r >= RANK_OUT ? '圏外' : `${r}位`)
@@ -76,6 +81,14 @@ export const Page: FC<{
           App Store 日本ランキングの順位変動から算出
           {lastFetched ? ` ・ 最終取得 ${new Date(lastFetched * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}` : ''}
         </p>
+        <div class="help">
+          各アプリの<strong>オレンジの数字(急上昇スコア)</strong>は、そのアプリが<b>最近どれだけ急に順位を上げたか</b>を表します。大きいほど急上昇しています。
+          <ul>
+            <li>ずっと同じ順位(1位のままでも) → 0</li>
+            <li>50位 → 25位(順位が半分に) → 約1.0</li>
+            <li>圏外(100位より下) → 10位 → 約3.5</li>
+          </ul>
+        </div>
         {errorCount > 0 && <p class="err">直近24時間に取得エラーが {errorCount} 件あります</p>}
         <form method="get">
           <label>
@@ -97,6 +110,7 @@ export const Page: FC<{
           <label>
             最小スコア
             <input type="number" name="min" step="0.1" value={String(q.min)} />
+            <span class="hint">この数字以上だけ表示</span>
           </label>
           <button type="submit">絞り込む</button>
         </form>
@@ -120,6 +134,7 @@ export const Page: FC<{
                   </div>
                 </div>
                 <div class="right">
+                  <div class="score-label">急上昇スコア</div>
                   <div class="score">{r.score.toFixed(2)}</div>
                   <Spark points={history.get(`${r.chart}|${r.item_id}`) ?? []} now={now} />
                 </div>
