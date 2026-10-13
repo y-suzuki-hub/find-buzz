@@ -14,7 +14,7 @@ h1{font-size:20px;margin:0 0 4px}
 .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
 form{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:16px}
 label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px}
-select,input,button{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
+select,input,button{font:inherit;height:36px;line-height:1;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
 input[type=number]{width:90px}
 button{background:var(--accent);border-color:var(--accent);color:#fff;cursor:pointer}
 ol{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
@@ -29,10 +29,10 @@ ol>li img{width:48px;height:48px;border-radius:11px;display:block}
 .right{text-align:right}
 .score{font-size:18px;font-weight:700;color:var(--accent)}
 .score-label{font-size:11px;color:var(--muted)}
+body{text-wrap:pretty}
 .help{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 16px}
 .help strong{color:var(--accent)}
 .help ul{margin:6px 0 0;padding-left:18px;color:var(--muted)}
-.hint{font-size:11px;color:var(--muted)}
 svg{display:block;margin-top:4px}
 .empty{padding:32px;text-align:center;color:var(--muted);background:var(--card);border-radius:12px;border:1px solid var(--line)}
 .err{font-size:13px;color:var(--accent);margin-bottom:12px}
@@ -82,7 +82,7 @@ export const Page: FC<{
           {lastFetched ? ` ・ 最終取得 ${new Date(lastFetched * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}` : ''}
         </p>
         <div class="help">
-          各アプリの<strong>オレンジの数字(急上昇スコア)</strong>は、そのアプリが<b>最近どれだけ急に順位を上げたか</b>を表します。大きいほど急上昇しています。
+          <strong>急上昇スコア</strong>(オレンジの数字)は、<b>最近どれだけ急に順位を上げたか</b>を表します。大きいほど急上昇。
           <ul>
             <li>ずっと同じ順位(1位のままでも) → 0</li>
             <li>50位 → 25位(順位が半分に) → 約1.0</li>
@@ -108,9 +108,8 @@ export const Page: FC<{
             </select>
           </label>
           <label>
-            最小スコア
+            最小スコア(この数字以上を表示)
             <input type="number" name="min" step="0.1" value={String(q.min)} />
-            <span class="hint">この数字以上だけ表示</span>
           </label>
           <button type="submit">絞り込む</button>
         </form>
