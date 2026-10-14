@@ -109,7 +109,7 @@ export const Page: FC<{
         <form method="get">
           <label>
             チャート
-            <select name="chart">
+            <select name="chart" onchange="this.form.submit()">
               <option value="all" selected={q.chart === 'all'}>すべて</option>
               {SOURCES.map(({ group, prefix }) => (
                 <optgroup label={group}>
@@ -124,7 +124,7 @@ export const Page: FC<{
           </label>
           <label>
             期間
-            <select name="period">
+            <select name="period" onchange="this.form.submit()">
               <option value="24h" selected={q.period === '24h'}>最新</option>
               <option value="7d" selected={q.period === '7d'}>7日間のピーク</option>
             </select>
