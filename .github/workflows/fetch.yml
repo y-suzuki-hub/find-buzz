@@ -1,4 +1,4 @@
-name: fetch-appstore
+name: fetch
 on:
   schedule:
     # 毎時0分は混雑して数時間遅れる・飛ばされることがあるため17分にずらす。5:17の回は7:30の通知に間に合わせる用
@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node scripts/fetch-appstore.ts
+      - run: node scripts/fetch.ts
         env:
           INGEST_URL: https://find-buzz.youth1975.workers.dev/ingest
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}

@@ -11,6 +11,8 @@ export type Signal = {
   isNew: boolean
   streak: number
   score: number
+  value: number | null
+  prevValue: number | null
 }
 
 /**
@@ -50,6 +52,44 @@ export function computeSignals(
       0.5 * (avgRank ? Math.log(avgRank / rank) : 0) +
       0.1 * Math.min(streak, 3)
 
-    return { itemId, rank, prevRank, avgRank, isNew, streak, score: Math.round(score * 1000) / 1000 }
+    return { itemId, rank, prevRank, avgRank, isNew, streak, score: round(score), value: null, prevValue: null }
   })
 }
+
+/**
+ * count系チャート(はてブ等)用。24時間前と比べた計測値の伸びを対数比で測る
+ * history: item_id -> (observed_at -> value)
+ */
+export function computeCountSignals(
+  now: number,
+  current: { itemId: number; rank: number; value: number | null }[],
+  runs: number[],
+  history: Map<number, Map<number, number>>,
+): Signal[] {
+  const recent = runs.filter((t) => t >= now - 7 * 24 * H)
+  const prevRun = [...runs].reverse().find((t) => t <= now - 20 * H) ?? runs[0]
+
+  return current.map(({ itemId, rank, value: v }) => {
+    const value = v ?? 0
+    const h = history.get(itemId)
+    // 人気エントリーに載る前は計測していないので、載っていなかった回は0件とみなす
+    const valueAt = (t: number) => h?.get(t) ?? 0
+
+    const prevValue = prevRun === undefined ? null : valueAt(prevRun)
+    const isNew = recent.length > 0 && recent.every((t) => !h?.has(t))
+
+    let streak = 0
+    let after = value
+    for (let i = runs.length - 1; i >= 0 && streak < 5; i--) {
+      const v = valueAt(runs[i])
+      if (v >= after) break
+      streak++
+      after = v
+    }
+
+    const score = (prevValue === null ? 0 : Math.log((value + 1) / (prevValue + 1))) + 0.1 * Math.min(streak, 3)
+    return { itemId, rank, prevRank: null, avgRank: null, isNew, streak, score: round(score), value, prevValue }
+  })
+}
+
+const round = (n: number) => Math.round(n * 1000) / 1000

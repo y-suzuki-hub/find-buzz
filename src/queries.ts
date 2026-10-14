@@ -8,6 +8,8 @@ export type Row = {
   is_new: number
   streak: number
   score: number
+  value: number | null
+  prev_value: number | null
   name: string
   url: string
   icon: string | null
@@ -49,21 +51,23 @@ export async function topSignals(
   return results.filter((r) => !seen.has(r.item_id) && seen.add(r.item_id)).slice(0, opts.limit)
 }
 
+export type Point = { t: number; rank: number; value: number | null }
+
 export async function rankHistory(db: D1Database, rows: Row[], now: number) {
-  if (rows.length === 0) return new Map<string, { t: number; rank: number }[]>()
+  if (rows.length === 0) return new Map<string, Point[]>()
   const { results } = await db
     .prepare(
-      `SELECT o.chart, o.item_id, o.observed_at t, o.rank FROM observations o
+      `SELECT o.chart, o.item_id, o.observed_at t, o.rank, o.score value FROM observations o
        JOIN json_each(?1) j ON o.chart = j.value->>'c' AND o.item_id = j.value->>'i'
        WHERE o.observed_at >= ?2 ORDER BY o.observed_at`,
     )
     .bind(JSON.stringify(rows.map((r) => ({ c: r.chart, i: r.item_id }))), now - 7 * 24 * 3600)
-    .all<{ chart: string; item_id: number; t: number; rank: number }>()
-  const map = new Map<string, { t: number; rank: number }[]>()
+    .all<{ chart: string; item_id: number; t: number; rank: number; value: number | null }>()
+  const map = new Map<string, Point[]>()
   for (const r of results) {
     const k = `${r.chart}|${r.item_id}`
     if (!map.has(k)) map.set(k, [])
-    map.get(k)!.push({ t: r.t, rank: r.rank })
+    map.get(k)!.push({ t: r.t, rank: r.rank, value: r.value })
   }
   return map
 }

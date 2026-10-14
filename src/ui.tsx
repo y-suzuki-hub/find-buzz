@@ -1,8 +1,7 @@
 import type { FC } from 'hono/jsx'
 import { RANK_OUT } from './score'
-import type { Period, Row } from './queries'
-
-type Point = { t: number; rank: number }
+import type { Period, Point, Row } from './queries'
+import type { ChartKind } from './sources/types'
 
 const css = `
 :root{--bg:#f7f7f5;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--accent:#e8590c;--up:#2b8a3e;--new:#1971c2}
@@ -28,6 +27,7 @@ ol>li img{width:48px;height:48px;border-radius:11px;display:block}
 .badge{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--new);color:#fff;margin-right:4px}
 .right{text-align:right}
 .score{font-size:18px;font-weight:700;color:var(--accent)}
+.noicon{width:48px;height:48px;border-radius:11px;background:#00a4de;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:16px}
 .score-label{font-size:11px;color:var(--muted)}
 body{text-wrap:pretty}
 .help{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 16px}
@@ -36,22 +36,26 @@ body{text-wrap:pretty}
 svg{display:block;margin-top:4px}
 .empty{padding:32px;text-align:center;color:var(--muted);background:var(--card);border-radius:12px;border:1px solid var(--line)}
 .err{font-size:13px;color:var(--accent);margin-bottom:12px}
-@media (max-width:560px){ol>li{grid-template-columns:40px 1fr}ol>li img{width:40px;height:40px}.right{grid-column:2;text-align:left;display:flex;gap:12px;align-items:center}}
+@media (max-width:560px){ol>li{grid-template-columns:40px 1fr}ol>li img,.noicon{width:40px;height:40px}.right{grid-column:2;text-align:left;display:flex;gap:12px;align-items:center}}
 `
 
 const rankText = (r: number | null) => (r === null ? '–' : r >= RANK_OUT ? '圏外' : `${r}位`)
 
-// 順位は小さいほど上なので、上が1位・下が圏外になるよう描く
-const Spark: FC<{ points: Point[]; now: number }> = ({ points, now }) => {
+// 順位は小さいほど上なので上が1位・下が圏外、count系は値が大きいほど上に描く
+const Spark: FC<{ points: Point[]; now: number; kind: ChartKind }> = ({ points, now, kind }) => {
   const w = 120
   const h = 32
   const from = now - 7 * 24 * 3600
   if (points.length < 2) return null
   const x = (t: number) => ((t - from) / (now - from)) * w
-  const y = (r: number) => ((Math.min(r, RANK_OUT) - 1) / (RANK_OUT - 1)) * (h - 4) + 2
-  const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.rank).toFixed(1)}`).join('')
+  const max = Math.max(1, ...points.map((p) => p.value ?? 0))
+  const y = (p: Point) =>
+    kind === 'count'
+      ? h - 2 - ((p.value ?? 0) / max) * (h - 4)
+      : ((Math.min(p.rank, RANK_OUT) - 1) / (RANK_OUT - 1)) * (h - 4) + 2
+  const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p).toFixed(1)}`).join('')
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-label="7日間の順位推移">
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-label="7日間の推移">
       <path d={d} fill="none" stroke="var(--accent)" stroke-width="1.5" />
     </svg>
   )
@@ -62,31 +66,31 @@ export const Page: FC<{
   history: Map<string, Point[]>
   charts: { id: string; label: string }[]
   chartLabel: (id: string) => string
+  chartKind: (id: string) => ChartKind
   q: { chart: string; period: Period; min: number }
   now: number
   lastFetched: number | null
   errorCount: number
-}> = ({ rows, history, charts, chartLabel, q, now, lastFetched, errorCount }) => (
+}> = ({ rows, history, charts, chartLabel, chartKind, q, now, lastFetched, errorCount }) => (
   <html lang="ja">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width,initial-scale=1" />
-      <title>急上昇アプリ | find-buzz</title>
+      <title>急上昇 | find-buzz</title>
       <style dangerouslySetInnerHTML={{ __html: css }} />
     </head>
     <body>
       <main>
-        <h1>急上昇アプリ</h1>
+        <h1>急上昇</h1>
         <p class="sub">
-          App Store 日本ランキングの順位変動から算出
+          App Store日本ランキングの順位変動と、はてなブックマークのブクマ数の伸びから算出
           {lastFetched ? ` ・ 最終取得 ${new Date(lastFetched * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}` : ''}
         </p>
         <div class="help">
-          <strong>急上昇スコア</strong>(オレンジの数字)は、<b>最近どれだけ急に順位を上げたか</b>を表します。大きいほど急上昇。
+          <strong>急上昇スコア</strong>(オレンジの数字)は、<b>この24時間でどれだけ急に伸びたか</b>を表します。大きいほど急上昇。変化がなければ0。
           <ul>
-            <li>ずっと同じ順位(1位のままでも) → 0</li>
-            <li>50位 → 25位(順位が半分に) → 約1.0</li>
-            <li>圏外(100位より下) → 10位 → 約3.5</li>
+            <li>App Store: 50位 → 25位(順位が半分に) → 約1.0、圏外(100位より下) → 10位 → 約3.5</li>
+            <li>はてブ: ブクマ100 → 300件 → 約1.1、0 → 30件 → 約3.4</li>
           </ul>
         </div>
         {errorCount > 0 && <p class="err">直近24時間に取得エラーが {errorCount} 件あります</p>}
@@ -95,8 +99,17 @@ export const Page: FC<{
             チャート
             <select name="chart">
               <option value="all" selected={q.chart === 'all'}>すべて</option>
-              {charts.map((c) => (
-                <option value={c.id} selected={q.chart === c.id}>{c.label}</option>
+              {[
+                ['App Store', 'appstore:'],
+                ['はてなブックマーク', 'hatena:'],
+              ].map(([group, prefix]) => (
+                <optgroup label={group}>
+                  {charts
+                    .filter((c) => c.id.startsWith(prefix))
+                    .map((c) => (
+                      <option value={c.id} selected={q.chart === c.id}>{c.label}</option>
+                    ))}
+                </optgroup>
               ))}
             </select>
           </label>
@@ -119,7 +132,11 @@ export const Page: FC<{
           <ol>
             {rows.map((r) => (
               <li>
-                {r.icon ? <img src={r.icon} alt="" width="48" height="48" loading="lazy" decoding="async" /> : <span />}
+                {r.icon ? (
+                  <img src={r.icon} alt="" width="48" height="48" loading="lazy" decoding="async" />
+                ) : (
+                  <span class="noicon" aria-hidden="true">B!</span>
+                )}
                 <div>
                   <a class="name" href={r.url} target="_blank" rel="noopener">{r.name}</a>
                   <div class="meta">
@@ -128,14 +145,26 @@ export const Page: FC<{
                   </div>
                   <div class="move">
                     {r.is_new ? <span class="badge">NEW</span> : null}
-                    {rankText(r.prev_rank)} → <span class="up">{rankText(r.rank)}</span>
-                    <span class="meta"> ・ 7日平均 {r.avg_rank ? `${r.avg_rank.toFixed(0)}位` : '–'}{r.streak > 1 ? ` ・ ${r.streak}回連続上昇` : ''}</span>
+                    {chartKind(r.chart) === 'count' ? (
+                      <>
+                        ブクマ {r.prev_value ?? '–'} → <span class="up">{r.value ?? 0}件</span>
+                        <span class="meta">
+                          {r.prev_value !== null ? ` ・ +${(r.value ?? 0) - r.prev_value}` : ''}
+                          {r.streak > 1 ? ` ・ ${r.streak}回連続増加` : ''}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {rankText(r.prev_rank)} → <span class="up">{rankText(r.rank)}</span>
+                        <span class="meta"> ・ 7日平均 {r.avg_rank ? `${r.avg_rank.toFixed(0)}位` : '–'}{r.streak > 1 ? ` ・ ${r.streak}回連続上昇` : ''}</span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div class="right">
                   <div class="score-label">急上昇スコア</div>
                   <div class="score">{r.score.toFixed(2)}</div>
-                  <Spark points={history.get(`${r.chart}|${r.item_id}`) ?? []} now={now} />
+                  <Spark points={history.get(`${r.chart}|${r.item_id}`) ?? []} now={now} kind={chartKind(r.chart)} />
                 </div>
               </li>
             ))}

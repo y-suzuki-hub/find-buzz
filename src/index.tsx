@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { chartLabel, charts } from './charts'
+import { chartLabel, chartOf, charts } from './charts'
 import { ingestAll, type ChartResult } from './collect'
 import { sendDigest } from './notify'
 import { rankHistory, recentErrors, topSignals, type Period } from './queries'
@@ -28,6 +28,7 @@ app.get('/', async (c) => {
       rows={rows}
       history={history}
       charts={charts.map(({ id, label }) => ({ id, label }))}
+      chartKind={(id: string) => chartOf(id)?.kind ?? 'rank'}
       chartLabel={chartLabel}
       q={q}
       now={now}
@@ -46,17 +47,17 @@ app.post('/ingest', async (c) => {
   const observedAt = Number(body?.observedAt)
   if (!Number.isInteger(observedAt) || !Array.isArray(body?.results)) return c.text('bad request', 400)
 
-  const known = new Map(charts.map((x) => [x.id, x.source]))
   const results: ChartResult[] = []
   for (const r of body.results as ChartResult[]) {
-    const source = known.get(r?.chart)
-    if (!source) return c.text(`unknown chart: ${String(r?.chart).slice(0, 80)}`, 400)
+    const chart = chartOf(r?.chart)
+    if (!chart) return c.text(`unknown chart: ${String(r?.chart).slice(0, 80)}`, 400)
     const items = Array.isArray(r.items)
       ? r.items
           .slice(0, 200)
           .filter((i) => typeof i?.externalId === 'string' && typeof i?.name === 'string' && typeof i?.url === 'string')
+          .map((i) => ({ ...i, value: Number.isFinite(i.value) ? i.value : undefined }))
       : undefined
-    results.push({ chart: r.chart, source, items, error: typeof r.error === 'string' ? r.error.slice(0, 500) : undefined })
+    results.push({ chart: chart.id, source: chart.source, kind: chart.kind, items, error: typeof r.error === 'string' ? r.error.slice(0, 500) : undefined })
   }
 
   return c.json(await ingestAll(c.env.DB, observedAt, results))

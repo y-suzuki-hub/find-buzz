@@ -67,6 +67,7 @@ export const appstoreCharts: Chart[] = FEEDS.flatMap(({ key, feed, label }) =>
   GENRES.map(([genre, genreLabel]) => ({
     id: `${SOURCE}:jp:${key}:${genre ?? 'all'}`,
     source: SOURCE,
+    kind: 'rank' as const,
     label: `App Store ${label}・${genreLabel}`,
     fetch:
       key === 'free' && genre === null
