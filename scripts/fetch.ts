@@ -5,11 +5,15 @@ const url = process.env.INGEST_URL
 const token = process.env.INGEST_TOKEN
 if (!url || !token) throw new Error('INGEST_URL / INGEST_TOKEN が未設定です')
 
+// SOURCES=appstore,hatena のように取得元を絞る(未指定なら全部)
+const only = process.env.SOURCES?.split(',').map((x) => x.trim())
+const targets = charts.filter((c) => !only || only.includes(c.source))
+
 // Actionsのcronは数分〜数十分遅れるので、1回分の観測時刻を時単位に丸めて揃える
 const observedAt = Math.floor(Date.now() / 3_600_000) * 3600
 
 const results = []
-for (const c of charts) {
+for (const c of targets) {
   try {
     results.push({ chart: c.id, items: await c.fetch() })
   } catch (e) {

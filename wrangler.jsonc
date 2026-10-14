@@ -16,7 +16,7 @@
     "crons": ["30 22 * * *"]
   },
   "vars": {
-    "DIGEST_SIZE": "10",
+    "DIGEST_PER_SOURCE": "3",
     // デプロイ後のURL。Slack通知の「一覧を開く」リンクに使う
     "APP_URL": "https://find-buzz.youth1975.workers.dev"
   },

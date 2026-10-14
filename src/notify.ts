@@ -1,29 +1,41 @@
-import { chartLabel, chartOf } from './charts'
+import { chartLabel, rankOut } from './charts'
 import { recentErrors, topSignals, type Row } from './queries'
 
+const SECTIONS = [
+  { prefix: 'appstore:', title: 'App Store' },
+  { prefix: 'hatena:', title: 'はてブ' },
+  { prefix: 'zenn:', title: 'Zenn' },
+  { prefix: 'googletrends:', title: 'Googleトレンド' },
+]
+
 const move = (r: Row) => {
-  if (chartOf(r.chart)?.kind === 'count') return `ブクマ ${r.prev_value ?? 0}→*${r.value ?? 0}*`
-  const from = r.is_new ? '🆕 圏外→' : r.prev_rank && r.prev_rank > r.rank ? `${r.prev_rank > 100 ? '圏外' : r.prev_rank + '位'}→` : ''
+  if (r.chart.startsWith('hatena:')) return `ブクマ ${r.prev_value ?? 0}→*${r.value ?? 0}*`
+  if (r.chart.startsWith('googletrends:')) return `検索数 *${(r.value ?? 0).toLocaleString()}+*`
+  const out = rankOut(r.chart)
+  const from = r.is_new ? '🆕 圏外→' : r.prev_rank && r.prev_rank > r.rank ? `${r.prev_rank >= out ? '圏外' : r.prev_rank + '位'}→` : ''
   return `${from}*${r.rank}位*`
 }
 
 export async function sendDigest(env: Env, now: number, appUrl: string | null) {
-  const rows = await topSignals(env.DB, {
-    chart: 'all',
-    period: '24h',
-    minScore: 0.01,
-    limit: Number(env.DIGEST_SIZE) || 10,
-    now,
-  })
+  // 取得元ごとにスコアの出方が違い、混ぜると数の大きいGoogleトレンドが上位を埋めるため、取得元ごとに上位N件を出す
+  const perSource = Number(env.DIGEST_PER_SOURCE) || 3
+  const rows = await topSignals(env.DB, { chart: 'all', period: '1d', minScore: 0.01, limit: 200, now })
   const errors = await recentErrors(env.DB, now)
 
-  const lines = rows.map(
-    (r, i) =>
-      `${i + 1}. <${r.url}|${escapeMrkdwn(r.name)}>  ${move(r)}  _${chartLabel(r.chart)}_  (score ${r.score.toFixed(2)})`,
-  )
+  const sections = SECTIONS.flatMap(({ prefix, title }) => {
+    const top = rows.filter((r) => r.chart.startsWith(prefix)).slice(0, perSource)
+    if (top.length === 0) return []
+    return [
+      `*${title}*`,
+      ...top.map(
+        (r, i) =>
+          `${i + 1}. <${r.url}|${escapeMrkdwn(r.name)}>  ${move(r)}  _${chartLabel(r.chart)}_  (score ${r.score.toFixed(2)})`,
+      ),
+    ]
+  })
   const text = [
-    `*今朝の急上昇* (${rows.length}件)`,
-    ...(lines.length ? lines : ['該当なし(履歴が溜まるまでは出ません)']),
+    '*今朝の急上昇*(直近24時間)',
+    ...(sections.length ? sections : ['該当なし(履歴が溜まるまでは出ません)']),
     ...(errors.length ? [`:warning: 直近24時間の取得エラー ${errors.length}件`] : []),
     ...(appUrl ? [`<${appUrl}|一覧を開く>`] : []),
   ].join('\n')

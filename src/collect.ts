@@ -1,7 +1,14 @@
 import { computeCountSignals, computeSignals } from './score'
 import type { ChartKind, FetchedItem } from './sources/types'
 
-export type ChartResult = { chart: string; source: string; kind: ChartKind; items?: FetchedItem[]; error?: string }
+export type ChartResult = {
+  chart: string
+  source: string
+  kind: ChartKind
+  rankOut: number
+  items?: FetchedItem[]
+  error?: string
+}
 
 export async function ingestAll(db: D1Database, now: number, results: ChartResult[]) {
   // 1つの取得元が落ちても他のチャートは保存する
@@ -65,7 +72,7 @@ async function ingestChart(db: D1Database, result: ChartResult, now: number) {
 
     const signals = counted
       ? computeCountSignals(now, current, runs, history)
-      : computeSignals(now, current, runs, history)
+      : computeSignals(now, current, runs, history, result.rankOut)
 
     await db.batch([
       db

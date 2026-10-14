@@ -1,4 +1,4 @@
-// 順位系チャートの圏外を表す値(各チャートは100位まで)
+// 順位系チャートの圏外を表す既定値(App Storeは100位まで)
 export const RANK_OUT = 101
 
 const H = 3600
@@ -24,6 +24,7 @@ export function computeSignals(
   current: { itemId: number; rank: number }[],
   runs: number[],
   history: Map<number, Map<number, number>>,
+  rankOut = RANK_OUT,
 ): Signal[] {
   const recent = runs.filter((t) => t >= now - 7 * 24 * H)
   // 24時間前に最も近い回。1日分の履歴がまだ無い間は一番古い回で代用する
@@ -31,7 +32,7 @@ export function computeSignals(
 
   return current.map(({ itemId, rank }) => {
     const h = history.get(itemId)
-    const rankAt = (t: number) => h?.get(t) ?? RANK_OUT
+    const rankAt = (t: number) => h?.get(t) ?? rankOut
 
     const prevRank = prevRun === undefined ? null : rankAt(prevRun)
     const avgRank = recent.length ? recent.reduce((s, t) => s + rankAt(t), 0) / recent.length : null

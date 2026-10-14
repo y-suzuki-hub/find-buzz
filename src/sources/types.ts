@@ -16,6 +16,8 @@ export type Chart = {
   id: string
   source: string
   kind: ChartKind
+  // rank系チャートの最大順位(既定100)。これより下は圏外扱い
+  depth?: number
   label: string
   fetch: () => Promise<FetchedItem[]>
 }

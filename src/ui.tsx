@@ -1,5 +1,5 @@
 import type { FC } from 'hono/jsx'
-import { RANK_OUT } from './score'
+import { rankOut } from './charts'
 import type { Period, Point, Row } from './queries'
 import type { ChartKind } from './sources/types'
 
@@ -27,7 +27,8 @@ ol>li img{width:48px;height:48px;border-radius:11px;display:block}
 .badge{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--new);color:#fff;margin-right:4px}
 .right{text-align:right}
 .score{font-size:18px;font-weight:700;color:var(--accent)}
-.noicon{width:48px;height:48px;border-radius:11px;background:#00a4de;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:16px}
+.noicon{width:48px;height:48px;border-radius:11px;background:#6e6e73;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:16px}
+.noicon[data-s="hatena:"]{background:#00a4de}.noicon[data-s="zenn:"]{background:#3ea8ff}.noicon[data-s="googletrends:"]{background:#4285f4}
 .score-label{font-size:11px;color:var(--muted)}
 body{text-wrap:pretty}
 .help{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 16px}
@@ -39,10 +40,18 @@ svg{display:block;margin-top:4px}
 @media (max-width:560px){ol>li{grid-template-columns:40px 1fr}ol>li img,.noicon{width:40px;height:40px}.right{grid-column:2;text-align:left;display:flex;gap:12px;align-items:center}}
 `
 
-const rankText = (r: number | null) => (r === null ? '–' : r >= RANK_OUT ? '圏外' : `${r}位`)
+const rankText = (r: number | null, out: number) => (r === null ? '–' : r >= out ? '圏外' : `${r}位`)
+
+const SOURCES: { prefix: string; group: string; mark: string; unit: (v: number | null) => string; metric: string }[] = [
+  { prefix: 'appstore:', group: 'App Store', mark: '', metric: '', unit: () => '' },
+  { prefix: 'hatena:', group: 'はてなブックマーク', mark: 'B!', metric: 'ブクマ', unit: (v) => `${v ?? 0}件` },
+  { prefix: 'zenn:', group: 'Zenn', mark: 'Z', metric: '', unit: () => '' },
+  { prefix: 'googletrends:', group: 'Googleトレンド', mark: 'G', metric: '検索数', unit: (v) => `${(v ?? 0).toLocaleString()}+` },
+]
+const sourceOf = (chart: string) => SOURCES.find((x) => chart.startsWith(x.prefix)) ?? SOURCES[0]
 
 // 順位は小さいほど上なので上が1位・下が圏外、count系は値が大きいほど上に描く
-const Spark: FC<{ points: Point[]; now: number; kind: ChartKind }> = ({ points, now, kind }) => {
+const Spark: FC<{ points: Point[]; now: number; kind: ChartKind; out: number }> = ({ points, now, kind, out }) => {
   const w = 120
   const h = 32
   const from = now - 7 * 24 * 3600
@@ -52,7 +61,7 @@ const Spark: FC<{ points: Point[]; now: number; kind: ChartKind }> = ({ points, 
   const y = (p: Point) =>
     kind === 'count'
       ? h - 2 - ((p.value ?? 0) / max) * (h - 4)
-      : ((Math.min(p.rank, RANK_OUT) - 1) / (RANK_OUT - 1)) * (h - 4) + 2
+      : ((Math.min(p.rank, out) - 1) / (out - 1)) * (h - 4) + 2
   const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p).toFixed(1)}`).join('')
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-label="7日間の推移">
@@ -83,7 +92,7 @@ export const Page: FC<{
       <main>
         <h1>急上昇</h1>
         <p class="sub">
-          App Store日本ランキングの順位変動と、はてなブックマークのブクマ数の伸びから算出
+          App Store・はてブ・Zenn・Googleトレンドの、順位や数の伸びから算出
           {lastFetched ? ` ・ 最終取得 ${new Date(lastFetched * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}` : ''}
         </p>
         <div class="help">
@@ -91,6 +100,7 @@ export const Page: FC<{
           <ul>
             <li>App Store: 50位 → 25位(順位が半分に) → 約1.0、圏外(100位より下) → 10位 → 約3.5</li>
             <li>はてブ: ブクマ100 → 300件 → 約1.1、0 → 30件 → 約3.4</li>
+            <li>Zenn: トレンド20位までの順位の上がり方。Googleトレンド: 急上昇ワードの検索数の目安の伸び</li>
           </ul>
         </div>
         {errorCount > 0 && <p class="err">直近24時間に取得エラーが {errorCount} 件あります</p>}
@@ -99,10 +109,7 @@ export const Page: FC<{
             チャート
             <select name="chart">
               <option value="all" selected={q.chart === 'all'}>すべて</option>
-              {[
-                ['App Store', 'appstore:'],
-                ['はてなブックマーク', 'hatena:'],
-              ].map(([group, prefix]) => (
+              {SOURCES.map(({ group, prefix }) => (
                 <optgroup label={group}>
                   {charts
                     .filter((c) => c.id.startsWith(prefix))
@@ -135,7 +142,7 @@ export const Page: FC<{
                 {r.icon ? (
                   <img src={r.icon} alt="" width="48" height="48" loading="lazy" decoding="async" />
                 ) : (
-                  <span class="noicon" aria-hidden="true">B!</span>
+                  <span class="noicon" data-s={sourceOf(r.chart).prefix} aria-hidden="true">{sourceOf(r.chart).mark}</span>
                 )}
                 <div>
                   <a class="name" href={r.url} target="_blank" rel="noopener">{r.name}</a>
@@ -147,15 +154,15 @@ export const Page: FC<{
                     {r.is_new ? <span class="badge">NEW</span> : null}
                     {chartKind(r.chart) === 'count' ? (
                       <>
-                        ブクマ {r.prev_value ?? '–'} → <span class="up">{r.value ?? 0}件</span>
+                        {sourceOf(r.chart).metric} {r.prev_value === null ? '–' : sourceOf(r.chart).unit(r.prev_value)} →{' '}
+                        <span class="up">{sourceOf(r.chart).unit(r.value)}</span>
                         <span class="meta">
-                          {r.prev_value !== null ? ` ・ +${(r.value ?? 0) - r.prev_value}` : ''}
                           {r.streak > 1 ? ` ・ ${r.streak}回連続増加` : ''}
                         </span>
                       </>
                     ) : (
                       <>
-                        {rankText(r.prev_rank)} → <span class="up">{rankText(r.rank)}</span>
+                        {rankText(r.prev_rank, rankOut(r.chart))} → <span class="up">{rankText(r.rank, rankOut(r.chart))}</span>
                         <span class="meta"> ・ 7日平均 {r.avg_rank ? `${r.avg_rank.toFixed(0)}位` : '–'}{r.streak > 1 ? ` ・ ${r.streak}回連続上昇` : ''}</span>
                       </>
                     )}
@@ -164,7 +171,7 @@ export const Page: FC<{
                 <div class="right">
                   <div class="score-label">急上昇スコア</div>
                   <div class="score">{r.score.toFixed(2)}</div>
-                  <Spark points={history.get(`${r.chart}|${r.item_id}`) ?? []} now={now} kind={chartKind(r.chart)} />
+                  <Spark points={history.get(`${r.chart}|${r.item_id}`) ?? []} now={now} kind={chartKind(r.chart)} out={rankOut(r.chart)} />
                 </div>
               </li>
             ))}

@@ -17,7 +17,8 @@ export type Row = {
   genre: string | null
 }
 
-export type Period = '24h' | '7d'
+// 24h: 各チャートの最新回 / 1d・7d: 期間内でスコアが最大だった回
+export type Period = '24h' | '1d' | '7d'
 
 /** chart='all' のときは同じアプリが複数チャートに出るので、スコア最大のものだけ残す */
 export async function topSignals(
@@ -41,7 +42,7 @@ export async function topSignals(
          WHERE s.score >= ?2
          ORDER BY s.score DESC LIMIT ?3`
   const params: unknown[] = [opts.chart, opts.minScore, opts.limit * 4]
-  if (opts.period === '7d') params.push(opts.now - 7 * 24 * 3600)
+  if (opts.period !== '24h') params.push(opts.now - (opts.period === '7d' ? 7 : 1) * 24 * 3600)
   const { results } = await db
     .prepare(sql)
     .bind(...params)

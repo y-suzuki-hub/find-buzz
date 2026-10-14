@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { chartLabel, chartOf, charts } from './charts'
+import { chartLabel, chartOf, charts, rankOut } from './charts'
 import { ingestAll, type ChartResult } from './collect'
 import { sendDigest } from './notify'
 import { rankHistory, recentErrors, topSignals, type Period } from './queries'
@@ -57,7 +57,7 @@ app.post('/ingest', async (c) => {
           .filter((i) => typeof i?.externalId === 'string' && typeof i?.name === 'string' && typeof i?.url === 'string')
           .map((i) => ({ ...i, value: Number.isFinite(i.value) ? i.value : undefined }))
       : undefined
-    results.push({ chart: chart.id, source: chart.source, kind: chart.kind, items, error: typeof r.error === 'string' ? r.error.slice(0, 500) : undefined })
+    results.push({ chart: chart.id, source: chart.source, kind: chart.kind, rankOut: rankOut(chart.id), items, error: typeof r.error === 'string' ? r.error.slice(0, 500) : undefined })
   }
 
   return c.json(await ingestAll(c.env.DB, observedAt, results))

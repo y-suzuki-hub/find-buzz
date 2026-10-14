@@ -17,3 +17,4 @@ jobs:
         env:
           INGEST_URL: https://find-buzz.youth1975.workers.dev/ingest
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          SOURCES: appstore,hatena,zenn
