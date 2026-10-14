@@ -6,11 +6,15 @@ const SECTIONS = [
   { prefix: 'hatena:', title: 'はてブ' },
   { prefix: 'zenn:', title: 'Zenn' },
   { prefix: 'googletrends:', title: 'Googleトレンド' },
+  { prefix: 'hn:', title: 'Hacker News' },
+  { prefix: 'github:', title: 'GitHub' },
 ]
 
 const move = (r: Row) => {
   if (r.chart.startsWith('hatena:')) return `ブクマ ${r.prev_value ?? 0}→*${r.value ?? 0}*`
   if (r.chart.startsWith('googletrends:')) return `検索数 *${(r.value ?? 0).toLocaleString()}+*`
+  if (r.chart.startsWith('hn:')) return `${r.prev_value ?? 0}→*${r.value ?? 0}pt*`
+  if (r.chart.startsWith('github:')) return `★${r.prev_value ?? 0}→*${r.value ?? 0}*`
   const out = rankOut(r.chart)
   const from = r.is_new ? '🆕 圏外→' : r.prev_rank && r.prev_rank > r.rank ? `${r.prev_rank >= out ? '圏外' : r.prev_rank + '位'}→` : ''
   return `${from}*${r.rank}位*`
@@ -19,11 +23,13 @@ const move = (r: Row) => {
 export async function sendDigest(env: Env, now: number, appUrl: string | null) {
   // 取得元ごとにスコアの出方が違い、混ぜると数の大きいGoogleトレンドが上位を埋めるため、取得元ごとに上位N件を出す
   const perSource = Number(env.DIGEST_PER_SOURCE) || 3
-  const rows = await topSignals(env.DB, { chart: 'all', period: '1d', minScore: 0.01, limit: 200, now })
-  const errors = await recentErrors(env.DB, now)
+  const [errors, ...tops] = await Promise.all([
+    recentErrors(env.DB, now),
+    ...SECTIONS.map(({ prefix }) => topSignals(env.DB, { chart: prefix, period: '1d', minScore: 0.01, limit: perSource, now })),
+  ])
 
-  const sections = SECTIONS.flatMap(({ prefix, title }) => {
-    const top = rows.filter((r) => r.chart.startsWith(prefix)).slice(0, perSource)
+  const sections = SECTIONS.flatMap(({ title }, i) => {
+    const top = tops[i]
     if (top.length === 0) return []
     return [
       `*${title}*`,

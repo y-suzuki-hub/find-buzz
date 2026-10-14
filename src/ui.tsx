@@ -28,7 +28,7 @@ ol>li img{width:48px;height:48px;border-radius:11px;display:block}
 .right{text-align:right}
 .score{font-size:18px;font-weight:700;color:var(--accent)}
 .noicon{width:48px;height:48px;border-radius:11px;background:#6e6e73;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:16px}
-.noicon[data-s="hatena:"]{background:#00a4de}.noicon[data-s="zenn:"]{background:#3ea8ff}.noicon[data-s="googletrends:"]{background:#4285f4}
+.noicon[data-s="hatena:"]{background:#00a4de}.noicon[data-s="zenn:"]{background:#3ea8ff}.noicon[data-s="googletrends:"]{background:#4285f4}.noicon[data-s="hn:"]{background:#ff6600}
 .score-label{font-size:11px;color:var(--muted)}
 body{text-wrap:pretty}
 .help{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 16px}
@@ -47,6 +47,8 @@ const SOURCES: { prefix: string; group: string; mark: string; unit: (v: number |
   { prefix: 'hatena:', group: 'はてなブックマーク', mark: 'B!', metric: 'ブクマ', unit: (v) => `${v ?? 0}件` },
   { prefix: 'zenn:', group: 'Zenn', mark: 'Z', metric: '', unit: () => '' },
   { prefix: 'googletrends:', group: 'Googleトレンド', mark: 'G', metric: '検索数', unit: (v) => `${(v ?? 0).toLocaleString()}+` },
+  { prefix: 'hn:', group: 'Hacker News', mark: 'Y', metric: 'ポイント', unit: (v) => `${v ?? 0}pt` },
+  { prefix: 'github:', group: 'GitHub', mark: 'GH', metric: 'スター', unit: (v) => `★${(v ?? 0).toLocaleString()}` },
 ]
 const sourceOf = (chart: string) => SOURCES.find((x) => chart.startsWith(x.prefix)) ?? SOURCES[0]
 
@@ -92,7 +94,7 @@ export const Page: FC<{
       <main>
         <h1>急上昇</h1>
         <p class="sub">
-          App Store・はてブ・Zenn・Googleトレンドの、順位や数の伸びから算出
+          App Store・はてブ・Zenn・Googleトレンド・Hacker News・GitHubの、順位や数の伸びから算出
           {lastFetched ? ` ・ 最終取得 ${new Date(lastFetched * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}` : ''}
         </p>
         <div class="help">
@@ -100,7 +102,7 @@ export const Page: FC<{
           <ul>
             <li>App Store: 50位 → 25位(順位が半分に) → 約1.0、圏外(100位より下) → 10位 → 約3.5</li>
             <li>はてブ: ブクマ100 → 300件 → 約1.1、0 → 30件 → 約3.4</li>
-            <li>Zenn: トレンド20位までの順位の上がり方。Googleトレンド: 急上昇ワードの検索数の目安の伸び</li>
+            <li>Zenn: トレンド20位までの順位の上がり方。Googleトレンド・Hacker News・GitHub: 検索数・ポイント・スター数の伸び</li>
           </ul>
         </div>
         {errorCount > 0 && <p class="err">直近24時間に取得エラーが {errorCount} 件あります</p>}

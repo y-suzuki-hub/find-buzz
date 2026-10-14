@@ -20,7 +20,7 @@ export type Row = {
 // 24h: 各チャートの最新回 / 1d・7d: 期間内でスコアが最大だった回
 export type Period = '24h' | '1d' | '7d'
 
-/** chart='all' のときは同じアプリが複数チャートに出るので、スコア最大のものだけ残す */
+/** chart: 'all' / チャートID / 'hatena:' のような取得元の接頭辞。chart='all' のときは同じアプリが複数チャートに出るので、スコア最大のものだけ残す */
 export async function topSignals(
   db: D1Database,
   opts: { chart: string; period: Period; minScore: number; limit: number; now: number },
@@ -31,11 +31,11 @@ export async function topSignals(
          SELECT s.*, i.name, i.url, i.icon, i.artist, i.genre
          FROM signals s JOIN latest l ON s.chart = l.chart AND s.observed_at = l.t
          JOIN items i ON i.id = s.item_id
-         WHERE (?1 = 'all' OR s.chart = ?1) AND s.score >= ?2
+         WHERE (?1 = 'all' OR s.chart = ?1 OR (?1 LIKE '%:' AND s.chart LIKE ?1 || '%')) AND s.score >= ?2
          ORDER BY s.score DESC LIMIT ?3`
       : `WITH best AS (
            SELECT chart, item_id, MAX(score) score, observed_at FROM signals
-           WHERE observed_at >= ?4 AND (?1 = 'all' OR chart = ?1) GROUP BY chart, item_id)
+           WHERE observed_at >= ?4 AND (?1 = 'all' OR chart = ?1 OR (?1 LIKE '%:' AND chart LIKE ?1 || '%')) GROUP BY chart, item_id)
          SELECT s.*, i.name, i.url, i.icon, i.artist, i.genre
          FROM best b JOIN signals s USING (chart, item_id, observed_at)
          JOIN items i ON i.id = s.item_id
