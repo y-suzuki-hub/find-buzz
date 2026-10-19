@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { BackgroundError, getBackground } from './background'
 import { chartLabel, chartOf, charts, rankOut } from './charts'
 import { ingestAll, type ChartResult } from './collect'
 import { sendDigest } from './notify'
@@ -38,6 +39,26 @@ app.get('/', async (c) => {
   )
 })
 
+// 別サイトのページから生成を叩かれないよう、同じオリジンからのリクエストだけ受け付ける
+app.post('/background', async (c) => {
+  const origin = c.req.header('origin')
+  if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: 'forbidden' }, 403)
+  const body = await c.req.json<{ chart?: unknown; itemId?: unknown }>().catch(() => null)
+  const itemId = Number(body?.itemId)
+  if (typeof body?.chart !== 'string' || !Number.isInteger(itemId)) return c.json({ error: 'bad request' }, 400)
+  try {
+    return c.json(await getBackground(c.env, body.chart, itemId, nowSec()))
+  } catch (e) {
+    if (e instanceof BackgroundError) return c.json({ error: e.message }, e.status)
+    console.error('background failed', e)
+    return c.json({ error: '説明の生成に失敗しました' }, 500)
+  }
+})
+
+app.get('/app.js', (c) =>
+  c.body(CLIENT_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=300' }),
+)
+
 // Apple RSSはCloudflareからのアクセスを403で拒否するため、取得はGitHub Actionsで行いここへ送る
 app.post('/ingest', async (c) => {
   if (!(await tokenMatches(c.req.header('authorization') ?? '', `Bearer ${c.env.INGEST_TOKEN ?? ''}`)) || !c.env.INGEST_TOKEN)
@@ -75,3 +96,47 @@ export default {
     await sendDigest(env, Math.floor(controller.scheduledTime / 1000), env.APP_URL || null)
   },
 } satisfies ExportedHandler<Env>
+
+const CLIENT_JS = `document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button.why')
+  if (!btn) return
+  const out = btn.nextElementSibling
+  if (out.dataset.loaded) { out.hidden = !out.hidden; return }
+  btn.disabled = true
+  out.hidden = false
+  out.textContent = '調べています…(初回は10〜30秒ほどかかります)'
+  try {
+    const res = await fetch('/background', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chart: btn.dataset.chart, itemId: Number(btn.dataset.item) }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || '失敗しました')
+    out.textContent = ''
+    for (const line of data.summary.split('\\n')) {
+      const m = line.match(/^(何か|なぜ今|切り口)[:：]\\s*(.*)$/)
+      const p = document.createElement('p')
+      if (m) { const b = document.createElement('b'); b.textContent = m[1]; p.append(b, ' ' + m[2]) } else p.textContent = line
+      out.append(p)
+    }
+    if (data.sources.length) {
+      const p = document.createElement('p')
+      p.className = 'why-src'
+      p.append('出典: ')
+      data.sources.forEach((s, i) => {
+        const a = document.createElement('a')
+        a.href = s.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = s.title
+        if (i) p.append(' / ')
+        p.append(a)
+      })
+      out.append(p)
+    }
+    out.dataset.loaded = '1'
+  } catch (err) {
+    out.textContent = err.message
+  } finally {
+    btn.disabled = false
+  }
+})
+`

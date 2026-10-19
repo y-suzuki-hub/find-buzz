@@ -29,6 +29,13 @@ ol>li img{width:48px;height:48px;border-radius:11px;display:block}
 .score{font-size:18px;font-weight:700;color:var(--accent)}
 .noicon{width:48px;height:48px;border-radius:11px;background:#6e6e73;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:16px}
 .noicon[data-s="hatena:"]{background:#00a4de}.noicon[data-s="zenn:"]{background:#3ea8ff}.noicon[data-s="googletrends:"]{background:#4285f4}.noicon[data-s="hn:"]{background:#ff6600}
+.why{margin-top:6px;height:28px;padding:0 10px;font-size:12px;background:transparent;color:var(--accent);border-color:var(--accent)}
+.why:disabled{opacity:.5;cursor:wait}
+.why-out{margin-top:8px;padding:10px 12px;border-radius:8px;background:var(--bg);font-size:13px}
+.why-out p{margin:0 0 4px}
+.why-out b{color:var(--accent);margin-right:2px}
+.why-src{color:var(--muted);font-size:12px}
+.why-src a{color:inherit}
 .score-label{font-size:11px;color:var(--muted)}
 body{text-wrap:pretty}
 .help{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 16px}
@@ -89,6 +96,7 @@ export const Page: FC<{
       <meta name="viewport" content="width=device-width,initial-scale=1" />
       <title>急上昇 | find-buzz</title>
       <style dangerouslySetInnerHTML={{ __html: css }} />
+      <script src="/app.js" defer></script>
     </head>
     <body>
       <main>
@@ -169,6 +177,10 @@ export const Page: FC<{
                       </>
                     )}
                   </div>
+                  <button type="button" class="why" data-chart={r.chart} data-item={String(r.item_id)}>
+                    なぜ伸びてる？
+                  </button>
+                  <div class="why-out" hidden></div>
                 </div>
                 <div class="right">
                   <div class="score-label">急上昇スコア</div>

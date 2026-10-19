@@ -17,6 +17,8 @@
   },
   "vars": {
     "DIGEST_PER_SOURCE": "3",
+    // 「なぜ伸びてる？」の1日(JST)あたりの生成上限。キャッシュ済みの表示は数えない
+    "BACKGROUND_DAILY_LIMIT": "30",
     // デプロイ後のURL。Slack通知の「一覧を開く」リンクに使う
     "APP_URL": "https://find-buzz.youth1975.workers.dev"
   },
