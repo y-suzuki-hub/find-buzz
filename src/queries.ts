@@ -27,7 +27,7 @@ export async function topSignals(
 ) {
   const sql =
     opts.period === '24h'
-      ? `WITH latest AS (SELECT chart, MAX(observed_at) t FROM fetch_runs WHERE status = 'ok' GROUP BY chart)
+      ? `WITH latest AS (SELECT chart, MAX(observed_at) t FROM fetch_runs WHERE status = 'ok' AND observed_at >= ?4 GROUP BY chart)
          SELECT s.*, i.name, i.url, i.icon, i.artist, i.genre
          FROM signals s JOIN latest l ON s.chart = l.chart AND s.observed_at = l.t
          JOIN items i ON i.id = s.item_id
@@ -42,7 +42,8 @@ export async function topSignals(
          WHERE s.score >= ?2
          ORDER BY s.score DESC LIMIT ?3`
   const params: unknown[] = [opts.chart, opts.minScore, opts.limit * 4]
-  if (opts.period !== '24h') params.push(opts.now - (opts.period === '7d' ? 7 : 1) * 24 * 3600)
+  // 24h: 取得をやめたチャートの古い回が残り続けないよう、2日以内に取得した回だけを最新とみなす
+  params.push(opts.now - (opts.period === '7d' ? 7 : opts.period === '1d' ? 1 : 2) * 24 * 3600)
   const { results } = await db
     .prepare(sql)
     .bind(...params)
