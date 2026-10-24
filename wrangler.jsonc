@@ -12,13 +12,15 @@
     }
   ],
   "triggers": {
-    // UTC。ダイジェスト=JST 7:30(取得は .github/workflows/fetch.yml)
-    "crons": ["30 22 * * *"]
+    // UTC。GitHub Actionsのscheduleは数時間遅れたり間引かれたりするため、取得の起動もここから行う
+    // 取得(fetch.yml)=JST 5:17/11:17/17:17/23:17、Googleトレンド(fetch-hourly.yml)=毎時37分、ダイジェスト=JST 7:30
+    "crons": ["17 2,8,14,20 * * *", "37 * * * *", "30 22 * * *"]
   },
   "vars": {
     "DIGEST_PER_SOURCE": "3",
     // 「なぜ伸びてる？」の1日(JST)あたりの生成上限。キャッシュ済みの表示は数えない
     "BACKGROUND_DAILY_LIMIT": "30",
+    "GITHUB_REPO": "y-suzuki-hub/find-buzz",
     // デプロイ後のURL。Slack通知の「一覧を開く」リンクに使う
     "APP_URL": "https://find-buzz.youth1975.workers.dev"
   },

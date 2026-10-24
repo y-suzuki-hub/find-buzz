@@ -1,8 +1,6 @@
 name: fetch
+# 起動はCloudflare WorkerのCron Triggersからworkflow_dispatchで行う(wrangler.jsonc)
 on:
-  schedule:
-    # 毎時0分は混雑して数時間遅れる・飛ばされることがあるため17分にずらす。5:17の回は7:30の通知に間に合わせる用
-    - cron: '17 2,8,14,20 * * *' # JST 5:17/11:17/17:17/23:17
   workflow_dispatch:
 jobs:
   fetch:

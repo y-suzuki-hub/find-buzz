@@ -1,8 +1,6 @@
 name: fetch-hourly
+# 起動はCloudflare WorkerのCron Triggersからworkflow_dispatchで行う(wrangler.jsonc)
 on:
-  schedule:
-    # Googleトレンドの急上昇RSSは直近1時間ほどの10件しか返らないため毎時取得する。毎時0分は混雑するので37分
-    - cron: '37 * * * *'
   workflow_dispatch:
 jobs:
   fetch:

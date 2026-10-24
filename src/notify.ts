@@ -23,8 +23,9 @@ const move = (r: Row) => {
 export async function sendDigest(env: Env, now: number, appUrl: string | null) {
   // 取得元ごとにスコアの出方が違い、混ぜると数の大きいGoogleトレンドが上位を埋めるため、取得元ごとに上位N件を出す
   const perSource = Number(env.DIGEST_PER_SOURCE) || 3
-  const [errors, ...tops] = await Promise.all([
+  const [errors, lastOk, ...tops] = await Promise.all([
     recentErrors(env.DB, now),
+    env.DB.prepare(`SELECT MAX(observed_at) t FROM fetch_runs WHERE status = 'ok'`).first<number>('t'),
     ...SECTIONS.map(({ prefix }) => topSignals(env.DB, { chart: prefix, period: '1d', minScore: 0.01, limit: perSource, now })),
   ])
 
@@ -43,6 +44,10 @@ export async function sendDigest(env: Env, now: number, appUrl: string | null) {
     '*今朝の急上昇*(直近24時間)',
     ...(sections.length ? sections : ['該当なし(履歴が溜まるまでは出ません)']),
     ...(errors.length ? [`:warning: 直近24時間の取得エラー ${errors.length}件`] : []),
+    // 起動用のGitHubトークンの期限切れなどで取得が止まっても気づけるように
+    ...(lastOk && now - lastOk > 8 * 3600
+      ? [`:warning: 最後に取得できたのは${Math.floor((now - lastOk) / 3600)}時間前です。取得が止まっている可能性があります`]
+      : []),
     ...(appUrl ? [`<${appUrl}|一覧を開く>`] : []),
   ].join('\n')
 

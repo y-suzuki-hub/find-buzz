@@ -90,10 +90,32 @@ async function tokenMatches(a: string, b: string) {
   return crypto.subtle.timingSafeEqual(ha, hb)
 }
 
+const WORKFLOW_BY_CRON: Record<string, string> = {
+  '17 2,8,14,20 * * *': 'fetch.yml',
+  '37 * * * *': 'fetch-hourly.yml',
+}
+
+// workflow_dispatchはscheduleと違って間引かれず、すぐ実行される
+async function dispatchWorkflow(env: Env, workflow: string) {
+  const res = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`,
+      accept: 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+      'user-agent': 'find-buzz',
+    },
+    body: JSON.stringify({ ref: 'main' }),
+  })
+  if (res.status !== 204) throw new Error(`dispatch ${workflow} failed: ${res.status} ${(await res.text()).slice(0, 200)}`)
+}
+
 export default {
   fetch: app.fetch,
   async scheduled(controller, env) {
-    await sendDigest(env, Math.floor(controller.scheduledTime / 1000), env.APP_URL || null)
+    const workflow = WORKFLOW_BY_CRON[controller.cron]
+    if (workflow) await dispatchWorkflow(env, workflow)
+    else await sendDigest(env, Math.floor(controller.scheduledTime / 1000), env.APP_URL || null)
   },
 } satisfies ExportedHandler<Env>
 
