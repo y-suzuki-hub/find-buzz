@@ -22,6 +22,10 @@ export const googleTrendsCharts: Chart[] = [
           artist: tag(it, 'ht:news_item_source'),
           genre: null,
           value: traffic(tag(it, 'ht:approx_traffic')),
+          news: [...it.matchAll(/<ht:news_item>([\s\S]*?)<\/ht:news_item>/g)]
+            .map((m) => ({ title: tag(m[1], 'ht:news_item_title'), url: tag(m[1], 'ht:news_item_url'), source: tag(m[1], 'ht:news_item_source') }))
+            .filter((n): n is { title: string; url: string; source: string | null } => !!n.title && !!n.url)
+            .slice(0, 3),
         }
       }),
   },

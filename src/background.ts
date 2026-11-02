@@ -15,6 +15,7 @@ type ItemRow = {
   prev_rank: number | null
   value: number | null
   prev_value: number | null
+  news_json: string | null
 }
 
 export class BackgroundError extends Error {
@@ -42,7 +43,7 @@ export async function getBackground(env: Env, chart: string, itemId: number, now
     throw new BackgroundError('本日の生成上限に達しました。明日またお試しください', 429)
 
   const item = await env.DB.prepare(
-    `SELECT i.name, i.url, i.artist, i.genre, s.rank, s.prev_rank, s.value, s.prev_value
+    `SELECT i.name, i.url, i.artist, i.genre, i.news_json, s.rank, s.prev_rank, s.value, s.prev_value
      FROM items i JOIN signals s ON s.item_id = i.id
      WHERE i.id = ?1 AND s.chart = ?2 ORDER BY s.observed_at DESC LIMIT 1`,
   )
@@ -67,6 +68,10 @@ function movement(chart: string, item: ItemRow) {
 async function generate(env: Env, chart: string, item: ItemRow, now: number) {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
   const today = new Date(now * 1000).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })
+  const news = (item.news_json ? JSON.parse(item.news_json) : []) as { title: string; url: string; source: string | null }[]
+  const newsBlock = news.length
+    ? `\n取得元がこの項目に紐づけている関連ニュース(最初の手がかりにしてください):\n${news.map((n) => `- ${n.title}(${n.source ?? '出典不明'}) ${n.url}`).join('\n')}\n`
+    : ''
   const prompt = `個人開発者向けのトレンド調査ツールで、次の項目がこの24時間で急に伸びました。なぜ伸びているのかを調べて説明してください。
 
 - 取得元: ${chartLabel(chart)}
@@ -74,9 +79,10 @@ async function generate(env: Env, chart: string, item: ItemRow, now: number) {
 - URL: ${item.url}
 ${item.artist ? `- 提供元・著者: ${item.artist}\n` : ''}${item.genre ? `- ジャンル: ${item.genre}\n` : ''}- 24時間の動き: ${movement(chart, item)}
 - 今日の日付: ${today}
-
+${newsBlock}
 調べ方:
 - 記事・リポジトリ・投稿の場合は、まずURLの中身を読んでください。中身そのものが伸びている理由であることが多いです。
+- 関連ニュースがあれば、まずその見出しから理由を読み取り、必要ならURLの中身を読んでください。
 - アプリや検索ワードの場合は、最近のニュース・アップデート・SNSでの話題をWeb検索で探してください。今日から2週間以内の情報を優先し、古い記事しか見つからない場合はそれを今回の理由として扱わないでください。
 - 根拠が見つからなければ推測で埋めず、「はっきりした理由は見つかりませんでした」と書いてください。
 
@@ -136,6 +142,7 @@ ${item.artist ? `- 提供元・著者: ${item.artist}\n` : ''}${item.genre ? `- 
     if (b.type === 'text') for (const c of b.citations ?? []) if (c.type === 'web_search_result_location') add(c.url, c.title)
     if (b.type === 'web_fetch_tool_result' && b.content.type === 'web_fetch_result') add(b.content.url, b.content.content.title ?? null)
   }
+  for (const n of news.slice(0, 2)) add(n.url, n.title)
   for (const b of response.content)
     if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) for (const r of b.content.slice(0, 2)) add(r.url, r.title)
 

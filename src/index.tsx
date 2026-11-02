@@ -76,7 +76,16 @@ app.post('/ingest', async (c) => {
       ? r.items
           .slice(0, 200)
           .filter((i) => typeof i?.externalId === 'string' && typeof i?.name === 'string' && typeof i?.url === 'string')
-          .map((i) => ({ ...i, value: Number.isFinite(i.value) ? i.value : undefined }))
+          .map((i) => ({
+            ...i,
+            value: Number.isFinite(i.value) ? i.value : undefined,
+            news: Array.isArray(i.news)
+              ? i.news
+                  .filter((n) => typeof n?.title === 'string' && typeof n?.url === 'string' && /^https?:\/\//.test(n.url))
+                  .slice(0, 3)
+                  .map((n) => ({ title: n.title.slice(0, 200), url: n.url.slice(0, 500), source: typeof n.source === 'string' ? n.source.slice(0, 50) : null }))
+              : undefined,
+          }))
       : undefined
     results.push({ chart: chart.id, source: chart.source, kind: chart.kind, rankOut: rankOut(chart.id), items, error: typeof r.error === 'string' ? r.error.slice(0, 500) : undefined })
   }

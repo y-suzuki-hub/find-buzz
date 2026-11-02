@@ -7,6 +7,8 @@ export type FetchedItem = {
   genre: string | null
   // count系チャートの計測値(はてブならブックマーク数)
   value?: number
+  // 取得元が紐づけている関連ニュース。画面には出さず「なぜ伸びてる？」の手がかりにする
+  news?: { title: string; url: string; source: string | null }[]
 }
 
 // rank: 順位の上昇で判定(App Store)/ count: 数値の伸びで判定(はてブ)

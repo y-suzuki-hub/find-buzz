@@ -27,12 +27,14 @@ async function ingestChart(db: D1Database, result: ChartResult, now: number) {
     // D1は1クエリのバインド数に上限があるため、配列はJSONで渡してjson_eachで展開する
     await db
       .prepare(
-        `INSERT INTO items (source, external_id, name, url, icon, artist, genre, first_seen_at)
+        `INSERT INTO items (source, external_id, name, url, icon, artist, genre, first_seen_at, news_json)
          SELECT ?1, j.value->>'externalId', j.value->>'name', j.value->>'url', j.value->>'icon',
-                j.value->>'artist', j.value->>'genre', ?2
+                j.value->>'artist', j.value->>'genre', ?2, j.value->'news'
          FROM json_each(?3) j WHERE true
-         ON CONFLICT (source, external_id) DO UPDATE SET name = excluded.name, icon = excluded.icon
-         WHERE items.name IS NOT excluded.name OR items.icon IS NOT excluded.icon`,
+         ON CONFLICT (source, external_id) DO UPDATE SET name = excluded.name, icon = excluded.icon,
+           news_json = coalesce(excluded.news_json, items.news_json)
+         WHERE items.name IS NOT excluded.name OR items.icon IS NOT excluded.icon
+           OR (excluded.news_json IS NOT NULL AND items.news_json IS NOT excluded.news_json)`,
       )
       .bind(chart.source, now, JSON.stringify(fetched))
       .run()
