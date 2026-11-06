@@ -16,6 +16,7 @@ type ItemRow = {
   value: number | null
   prev_value: number | null
   news_json: string | null
+  external_id: string
 }
 
 export class BackgroundError extends Error {
@@ -43,7 +44,7 @@ export async function getBackground(env: Env, chart: string, itemId: number, now
     throw new BackgroundError('本日の生成上限に達しました。明日またお試しください', 429)
 
   const item = await env.DB.prepare(
-    `SELECT i.name, i.url, i.artist, i.genre, i.news_json, s.rank, s.prev_rank, s.value, s.prev_value
+    `SELECT i.name, i.url, i.artist, i.genre, i.news_json, i.external_id, s.rank, s.prev_rank, s.value, s.prev_value
      FROM items i JOIN signals s ON s.item_id = i.id
      WHERE i.id = ?1 AND s.chart = ?2 ORDER BY s.observed_at DESC LIMIT 1`,
   )
@@ -65,6 +66,32 @@ function movement(chart: string, item: ItemRow) {
   return `${r(item.prev_rank)} → ${r(item.rank)}`
 }
 
+// 取得元によって「伸びた理由」の在りかが違う。記事やリポジトリは中身と反応そのものが理由で、外部のきっかけを探すと「見つからない」になりやすい
+function howToResearch(chart: string, item: ItemRow) {
+  const source = chart.split(':')[0]
+  if (source === 'hatena') {
+    const entry = `https://b.hatena.ne.jp/entry/${item.url.startsWith('https://') ? 's/' : ''}${item.url.replace(/^https?:\/\//, '')}`
+    return `- 記事のURLを読み、中身のどこが読者に刺さったか(新しさ・意外さ・実用性・共感・時事との関係)を書いてください。
+- はてなブックマークのコメント欄 ${entry} も読み、読者が何に反応しているかを理由に含めてください。
+- 外部のきっかけ(ニュースやSNS)は探さなくてかまいません。`
+  }
+  if (source === 'zenn')
+    return `- 記事のURLを読み、中身のどこが読者に刺さったか(新しさ・意外さ・実用性・時事との関係)を書いてください。
+- 外部のきっかけ(ニュースやSNS)は探さなくてかまいません。`
+  if (source === 'hn')
+    return `- リンク先を読み、中身のどこが注目されたかを書いてください。
+- Hacker Newsの議論ページ https://news.ycombinator.com/item?id=${item.external_id} も読み、読者が何に反応しているか(賛否や論点)を理由に含めてください。`
+  if (source === 'github')
+    return `- リポジトリのページ(README)を読み、誰が作ったか、何ができるか、何が新しいかを書いてください。
+- 有名な組織・開発者の公開や、新しいモデル・製品の発表に合わせた公開なら、それを理由として書いてください。必要ならリポジトリ名でWeb検索して、紹介している記事や投稿を探してください。
+- 外部のきっかけが見つからなければ、READMEから分かる新しさ・便利さ・手軽さを理由として書いてください(「(推定)」を付けてかまいません)。`
+  if (source === 'googletrends')
+    return `- 関連ニュースがあれば、まずその見出しから理由を読み取り、必要ならURLの中身を読んでください。
+- 関連ニュースが無い、または見出しで分からない場合は、このワードを最近のニュースでWeb検索してください。`
+  return `- このアプリについて、最近のニュース・アップデート・テレビやCM・キャンペーン・SNSでの話題をWeb検索で探してください。
+- 見つからない場合は、競合アプリの障害や終了、季節要因、関連する出来事など、周辺の要因も検討してください。`
+}
+
 async function generate(env: Env, chart: string, item: ItemRow, now: number) {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
   const today = new Date(now * 1000).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })
@@ -81,14 +108,16 @@ ${item.artist ? `- 提供元・著者: ${item.artist}\n` : ''}${item.genre ? `- 
 - 今日の日付: ${today}
 ${newsBlock}
 調べ方:
-- 記事・リポジトリ・投稿の場合は、まずURLの中身を読んでください。中身そのものが伸びている理由であることが多いです。
-- 関連ニュースがあれば、まずその見出しから理由を読み取り、必要ならURLの中身を読んでください。
-- アプリや検索ワードの場合は、最近のニュース・アップデート・SNSでの話題をWeb検索で探してください。今日から2週間以内の情報を優先し、古い記事しか見つからない場合はそれを今回の理由として扱わないでください。
-- 根拠が見つからなければ推測で埋めず、「はっきりした理由は見つかりませんでした」と書いてください。
+${howToResearch(chart, item)}
+
+書き方:
+- 「なぜ今」は、調べて分かった理由を言い切ってください。確かでない部分は文末に「(推定)」と付けるだけにし、「〜は確認できませんでした」「〜は未確認です」といった断り書きは書かないでください。
+- 「不明」と書いてよいのは、URLの中身も関連情報も1つも読めなかったときだけです。そのときは「なぜ今: 不明(〜を調べたが手がかりなし)」と短く書いてください。中身を読めたなら、中身から言える理由を書いてください。
+- 古い出来事(今日から2週間より前)を今回の理由にしないでください。
 
 次の3行だけを、この形式のまま出力してください。各行80字以内、前置きや見出しは不要です。
 何か: (それが何かを1文で)
-なぜ今: (伸びている理由・きっかけを、根拠とともに1〜2文で)
+なぜ今: (伸びている理由を1〜2文で)
 切り口: (個人開発者がアプリやサービスのネタにするならどこを狙えるか1文で)`
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt }]
@@ -108,7 +137,7 @@ ${newsBlock}
           max_uses: 5,
           user_location: { type: 'approximate', country: 'JP', timezone: 'Asia/Tokyo' },
         },
-        { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 2 },
+        { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 3 },
       ],
       messages,
     })
