@@ -35,7 +35,7 @@ export async function getBackground(env: Env, chart: string, itemId: number, now
   const cached = await env.DB.prepare(`SELECT summary, sources FROM backgrounds WHERE chart = ?1 AND item_id = ?2 AND created_at >= ?3`)
     .bind(chart, itemId, now - CACHE_SEC)
     .first<{ summary: string; sources: string }>()
-  if (cached) return { summary: cached.summary, sources: JSON.parse(cached.sources), cached: true }
+  if (cached) return { summary: stripHedge(cached.summary), sources: JSON.parse(cached.sources), cached: true }
 
   // 公開ページから叩けるため、1日(JST)の生成回数に上限を設けてAPIクレジットの使い過ぎを防ぐ
   const dayStart = Math.floor((now + 9 * 3600) / 86400) * 86400 - 9 * 3600
@@ -84,13 +84,16 @@ function howToResearch(chart: string, item: ItemRow) {
   if (source === 'github')
     return `- リポジトリのページ(README)を読み、誰が作ったか、何ができるか、何が新しいかを書いてください。
 - 有名な組織・開発者の公開や、新しいモデル・製品の発表に合わせた公開なら、それを理由として書いてください。必要ならリポジトリ名でWeb検索して、紹介している記事や投稿を探してください。
-- 外部のきっかけが見つからなければ、READMEから分かる新しさ・便利さ・手軽さを理由として書いてください(「(推定)」を付けてかまいません)。`
+- 外部のきっかけが見つからなければ、READMEから分かる新しさ・便利さ・手軽さを理由として書いてください。`
   if (source === 'googletrends')
     return `- 関連ニュースがあれば、まずその見出しから理由を読み取り、必要ならURLの中身を読んでください。
 - 関連ニュースが無い、または見出しで分からない場合は、このワードを最近のニュースでWeb検索してください。`
   return `- このアプリについて、最近のニュース・アップデート・テレビやCM・キャンペーン・SNSでの話題をWeb検索で探してください。
 - 見つからない場合は、競合アプリの障害や終了、季節要因、関連する出来事など、周辺の要因も検討してください。`
 }
+
+// 指示しても「(推定)」を付けることがあるので表示前に消す(保存済みの説明にも効かせる)
+const stripHedge = (s: string) => s.replace(/\s*[(（]推定[)）]/g, '')
 
 async function generate(env: Env, chart: string, item: ItemRow, now: number) {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
@@ -111,7 +114,7 @@ ${newsBlock}
 ${howToResearch(chart, item)}
 
 書き方:
-- 「なぜ今」は、調べて分かった理由を言い切ってください。確かでない部分は文末に「(推定)」と付けるだけにし、「〜は確認できませんでした」「〜は未確認です」といった断り書きは書かないでください。
+- 「なぜ今」は、調べて分かった理由を言い切ってください。「(推定)」「〜とみられます」「〜は確認できませんでした」「〜は未確認です」といった断り書きや留保は書かないでください。
 - 「不明」と書いてよいのは、URLの中身も関連情報も1つも読めなかったときだけです。そのときは「なぜ今: 不明(〜を調べたが手がかりなし)」と短く書いてください。中身を読めたなら、中身から言える理由を書いてください。
 - 古い出来事(今日から2週間より前)を今回の理由にしないでください。
 
@@ -158,7 +161,7 @@ ${howToResearch(chart, item)}
     // 見出しを太字や箇条書きで書くことがあるので記号を落としてから判定する
     .map((l) => l.replace(/\*\*/g, '').replace(/^[\s\-・*#>]+/, '').trim())
     .filter((l) => /^(何か|なぜ今|切り口)\s*[:：]/.test(l))
-    .map((l) => l.replace(/^(何か|なぜ今|切り口)\s*[:：]\s*/, '$1: '))
+    .map((l) => stripHedge(l.replace(/^(何か|なぜ今|切り口)\s*[:：]\s*/, '$1: ')))
     .join('\n')
   if (!summary) throw new BackgroundError('説明の生成に失敗しました', 502)
 
